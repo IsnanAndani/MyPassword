@@ -1,0 +1,219 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Password</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        nav { display: flex; justify-content: space-between; padding: 10px; background: #333; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 10px; }
+        th { background-color: #f2f2f2; }
+        tbody tr:nth-child(even) { background-color: #f9f9f9; }
+        tbody tr:nth-child(odd) { background-color: #ffffff; }
+        tbody tr:hover { background-color: #eaeaea; }
+        #addBtn { position: fixed; bottom: 20px; right: 20px; background: #28a745; color: white; border: none; border-radius: 50%; width: 60px; height: 60px; font-size: 30px; }
+        #popup { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+        #editDeleteBar { display: none; position: fixed; top: 0; right: 0; padding: 10px; background: #fff; box-shadow: 0 0 5px gray; }
+    </style>
+</head>
+<body>
+
+    <div id="lockScreen">
+        <h2>Masukkan Kode 6 Digit</h2>
+        <input type="password" id="passcode" maxlength="6" autofocus>
+        <button onclick="checkPasscode()">Masuk</button>
+        <p id="error" style="color:red"></p>
+    </div>
+
+    <div id="app" style="display:none;">
+        <nav>
+            <div>Halo, Isnan Andani</div>
+            <div>
+                <button onclick="exportData()">Export</button>
+                <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+                <button onclick="document.getElementById('importFile').click()">Import</button>
+            </div>
+        </nav>
+
+        <table id="passwordTable">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>Jenis Akun</th>
+                    <th>Email/No.Telp</th>
+                    <th>Password</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <p id="noData" style="text-align:center; margin:20px;">Belum Ada Data</p>
+
+        <button id="addBtn" onclick="showAddPopup()">+</button>
+
+        <div id="popup">
+            <h3 id="popupTitle">Tambah Data</h3>
+            <input id="jenis" placeholder="Jenis Akun"><br><br>
+            <input id="kontak" placeholder="Email/No.Telp"><br><br>
+            <input id="password" placeholder="Password"><br><br>
+            <button onclick="saveData()">Simpan</button>
+            <button onclick="closePopup()">Batal</button>
+        </div>
+
+        <div id="editDeleteBar">
+            <button onclick="editData()">Edit</button>
+            <button onclick="deleteData()">Hapus</button>
+        </div>
+    </div>
+
+<script>
+let data = [];
+let editingIndex = null;
+let selectedRow = null;
+let masterKey = '';
+
+function checkPasscode() {
+    const input = document.getElementById("passcode").value;
+    if (input.length !== 6) {
+        document.getElementById("error").innerText = "Kode harus 6 digit!";
+        return;
+    }
+    masterKey = input;
+    loadData();
+    document.getElementById("lockScreen").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    renderTable();
+}
+
+function encryptData(obj) {
+    return CryptoJS.AES.encrypt(JSON.stringify(obj), masterKey).toString();
+}
+
+function decryptData(cipher) {
+    try {
+        const bytes = CryptoJS.AES.decrypt(cipher, masterKey);
+        const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
+        return JSON.parse(decryptedData);
+    } catch {
+        return [];
+    }
+}
+
+function loadData() {
+    const cipher = localStorage.getItem('passwords_encrypted');
+    if (cipher) {
+        data = decryptData(cipher) || [];
+    } else {
+        data = [];
+    }
+}
+
+function saveEncrypted() {
+    const cipher = encryptData(data);
+    localStorage.setItem('passwords_encrypted', cipher);
+}
+
+function renderTable() {
+    const tbody = document.querySelector("#passwordTable tbody");
+    tbody.innerHTML = "";
+    if (data.length === 0) {
+        document.getElementById("noData").style.display = "block";
+        return;
+    }
+    document.getElementById("noData").style.display = "none";
+    data.forEach((item, i) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${i+1}</td><td>${item.jenis}</td><td>${item.kontak}</td><td>${item.password}</td>`;
+        row.addEventListener('mousedown', () => longPress(row, i));
+        row.addEventListener('touchstart', () => longPress(row, i));
+        tbody.appendChild(row);
+    });
+}
+
+function showAddPopup() {
+    editingIndex = null;
+    document.getElementById("popupTitle").innerText = "Tambah Data";
+    document.getElementById("jenis").value = "";
+    document.getElementById("kontak").value = "";
+    document.getElementById("password").value = "";
+    document.getElementById("popup").style.display = "block";
+}
+
+function closePopup() {
+    document.getElementById("popup").style.display = "none";
+}
+
+function saveData() {
+    const item = {
+        jenis: document.getElementById("jenis").value,
+        kontak: document.getElementById("kontak").value,
+        password: document.getElementById("password").value
+    };
+    if (editingIndex !== null) {
+        data[editingIndex] = item;
+    } else {
+        data.push(item);
+    }
+    saveEncrypted();
+    renderTable();
+    closePopup();
+}
+
+function longPress(row, index) {
+    selectedRow = index;
+    document.getElementById("editDeleteBar").style.display = "block";
+}
+
+function editData() {
+    editingIndex = selectedRow;
+    const item = data[editingIndex];
+    document.getElementById("jenis").value = item.jenis;
+    document.getElementById("kontak").value = item.kontak;
+    document.getElementById("password").value = item.password;
+    document.getElementById("popupTitle").innerText = "Edit Data";
+    document.getElementById("popup").style.display = "block";
+    document.getElementById("editDeleteBar").style.display = "none";
+}
+
+function deleteData() {
+    if (confirm("Yakin hapus data?")) {
+        data.splice(selectedRow, 1);
+        saveEncrypted();
+        renderTable();
+    }
+    document.getElementById("editDeleteBar").style.display = "none";
+}
+
+function exportData() {
+    const blob = new Blob([localStorage.getItem('passwords_encrypted')], {type: "application/json"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "passwords_backup.json";
+    link.click();
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const importedCipher = reader.result;
+            const importedData = decryptData(importedCipher);
+            if (!Array.isArray(importedData)) throw "Format tidak valid";
+            data = importedData;
+            saveEncrypted();
+            renderTable();
+        } catch (e) {
+            alert("Gagal import data. Pastikan file dan kunci sama.");
+        }
+    };
+    reader.readAsText(file);
+}
+</script>
+
+</body>
+</html>
