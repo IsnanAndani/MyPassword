@@ -1,7 +1,7 @@
 {
   "name": "My Password",
-  "short_name": "PassMan",
-  "start_url": "/index.html",
+  "short_name": "My Password",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#4361ee",
   "theme_color": "#4361ee",
